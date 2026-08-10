@@ -1,0 +1,15 @@
+# CMake build directories
+build*/
+cmake-build-*/
+
+# Runtime persistence data
+snapshot.txt
+
+# Temporary persistence test files
+*_snapshot.txt
+
+# IDE and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
