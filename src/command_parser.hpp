@@ -3,6 +3,9 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <vector>
+
+
 
 struct Command
 {
@@ -13,3 +16,7 @@ struct Command
 };
 
 Command parse_command(const std::string& command);
+
+Command parse_command(
+    const std::vector<std::string>& arguments
+);

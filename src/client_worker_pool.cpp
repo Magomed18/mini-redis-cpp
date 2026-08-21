@@ -146,6 +146,7 @@ void ClientWorkerPool::worker_loop()
             client_socket.emplace(
                 std::move(pending_clients_.front())
             );
+        
 
             pending_clients_.pop();
         }

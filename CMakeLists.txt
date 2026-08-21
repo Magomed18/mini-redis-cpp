@@ -17,6 +17,7 @@ src/socket_handle.cpp
 src/command_executor.cpp
 src/client_session.cpp
 src/client_worker_pool.cpp
+src/resp_parser.cpp
 )
 
 add_executable(key_value_store_tests
@@ -35,9 +36,17 @@ add_executable(command_executor_tests
     src/key_value_store.cpp
 )
 
+add_executable(resp_parser_tests
+    test/resp_parser_tests.cpp
+    src/resp_parser.cpp
+)
+
 target_include_directories(key_value_store_tests PRIVATE src)
 target_include_directories(command_parser_tests PRIVATE src)
 target_include_directories(command_executor_tests PRIVATE src)
+target_include_directories(resp_parser_tests PRIVATE src)
+
+
 
 add_test(
     NAME KeyValueStoreTests
@@ -52,6 +61,11 @@ add_test(
 add_test(
     NAME CommandExecutorTests
     COMMAND command_executor_tests
+)
+
+add_test(
+    NAME RespParserTests
+    COMMAND resp_parser_tests
 )
 
 target_link_libraries(

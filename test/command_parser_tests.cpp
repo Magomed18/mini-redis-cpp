@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <cassert>
 #include <iostream>
+#include <vector>
 
 int main()
 {
@@ -32,6 +33,19 @@ int main()
     
 
     std::cout << "All command parser tests passed\n";
+
+
+    const Command resp_set = parse_command(
+    std::vector<std::string>{
+        "SET", "name", "Alice Smith", "EX", "10"
+    }
+    );
+
+    assert(resp_set.operation == "SET");
+    assert(resp_set.key == "name");
+    assert(resp_set.value == "Alice Smith");
+    assert(resp_set.ttl.has_value());
+    assert(resp_set.ttl.value() == std::chrono::seconds(10));
 
     return 0;
 }
