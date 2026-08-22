@@ -10,6 +10,7 @@
 #include "command_executor.hpp"
 #include "command_parser.hpp"
 #include "key_value_store.hpp"
+#include "resp_parser.hpp"
 
 namespace
 {
@@ -137,81 +138,106 @@ void handle_client(
         std::size_t newline_position = 0;
 
         // Extract every complete newline-terminated command.
-        while ((newline_position = pending_data.find('\n'))
-               != std::string::npos)
+        // Extract every complete RESP command currently in the buffer.
+    while (!pending_data.empty())
+    {
+        const RespParseResult resp_result =
+            parse_resp_command(pending_data);
+
+        // TCP may have delivered only part of the command.
+        if (resp_result.status == RespParseStatus::Incomplete)
         {
-            if (newline_position > max_command_length)
+            break;
+        }
+
+        // Invalid framing cannot be recovered safely because we do not
+        // know where the next command begins.
+        if (resp_result.status == RespParseStatus::Invalid)
+        {
+            send_all(
+                client_socket.get(),
+                "-ERR invalid RESP command\r\n"
+            );
+
+            close_client = true;
+            break;
+        }
+
+        if (resp_result.bytes_consumed > max_command_length)
+        {
+            send_all(
+                client_socket.get(),
+                "-ERR command is too long\r\n"
+            );
+
+            close_client = true;
+            break;
+        }
+
+        // Remove only the command that was successfully framed.
+        pending_data.erase(0, resp_result.bytes_consumed);
+
+        Command parsed{};
+
+        try
+        {
+            parsed = parse_command(resp_result.arguments);
+        }
+        catch (const std::invalid_argument& error)
+        {
+            const std::string error_response =
+                "-ERR " + std::string(error.what()) + "\r\n";
+
+            send_all(
+                client_socket.get(),
+                error_response
+            );
+
+            // The RESP framing was valid, so later commands can
+            // still be processed.
+            continue;
+        }
+
+        std::cout << "RESP command: "
+                << parsed.operation << '\n';
+
+        CommandResult result{};
+
+        {
+            // Protect shared storage and snapshot persistence.
+            std::lock_guard<std::mutex> lock(storage_mutex);
+
+            result = execute_command(parsed, storage);
+
+            if (result.storage_changed)
             {
-                send_all(
-                    client_socket.get(),
-                    "Error: command is too long\n"
-                );
-
-                close_client = true;
-                break;
-            }
-
-            std::string received_command =
-                pending_data.substr(0, newline_position);
-
-            pending_data.erase(0, newline_position + 1);
-
-            // Accept both "\n" and Windows-style "\r\n".
-            if (!received_command.empty() &&
-                received_command.back() == '\r')
-            {
-                received_command.pop_back();
-            }
-
-            std::cout << "Complete command: "
-                      << received_command << '\n';
-
-            const Command parsed =
-                parse_command(received_command);
-
-            CommandResult result{};
-
-            {
-                // Only one client may execute a storage command and save
-                // the snapshot at a time.
-                std::lock_guard<std::mutex> lock(storage_mutex);
-
-                result = execute_command(parsed, storage);
-
-                if (result.storage_changed)
-                {
-                    storage.save_to_file(snapshot_file);
-                }
-            }
-
-            // Network sending happens after releasing the storage lock.
-            if (!result.response.empty())
-            {
-                send_all(client_socket.get(), result.response);
-            }
-
-            if (!result.response.empty())
-            {
-                send_all(
-                    client_socket.get(),
-                    result.response
-                );
-            }
-
-            if (result.close_connection)
-            {
-                close_client = true;
-                break;
+                storage.save_to_file(snapshot_file);
             }
         }
 
-        // No newline exists, but the unfinished command is too large.
+        // Sending occurs after releasing the storage mutex.
+        if (!result.response.empty())
+        {
+            send_all(
+                client_socket.get(),
+                result.response
+            );
+        }
+
+        if (result.close_connection)
+        {
+            close_client = true;
+            break;
+        }
+    }
+
+        // An incomplete RESP command is consuming too much memory.
         if (!close_client &&
             pending_data.size() > max_command_length)
         {
             send_all(
                 client_socket.get(),
-                "Error: command is too long\n"
+                "-ERR command is too long\r\n"
             );
 
             close_client = true;

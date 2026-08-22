@@ -1,6 +1,7 @@
 #include "command_executor.hpp"
 
 #include "key_value_store.hpp"
+#include "resp_encoder.hpp"
 
 CommandResult execute_command(
     const Command& command,
@@ -16,17 +17,25 @@ CommandResult execute_command(
     {
         if (!command.key.empty() || !command.value.empty())
         {
-            return {"Error: PING does not accept arguments\n"};
+            return {
+                encode_resp_error(
+                    "PING does not accept arguments"
+                )
+            };
         }
 
-        return {"PONG\n"};
+        return {encode_resp_simple_string("PONG")};
     }
 
     if (command.operation == "SET")
     {
         if (command.key.empty() || command.value.empty())
         {
-            return {"Error: SET requires key and value\n"};
+            return {
+                encode_resp_error(
+                    "SET requires key and value"
+                )
+            };
         }
 
         if (command.ttl.has_value())
@@ -42,68 +51,90 @@ CommandResult execute_command(
             storage.set(command.key, command.value);
         }
 
-        // SET modified persistent application state.
-        return {"OK\n", true};
+        return {
+            encode_resp_simple_string("OK"),
+            true
+        };
     }
 
     if (command.operation == "GET")
     {
         if (command.key.empty())
         {
-            return {"Error: GET requires key\n"};
+            return {
+                encode_resp_error("GET requires key")
+            };
         }
 
         if (!command.value.empty())
         {
-            return {"Error: GET does not accept a value\n"};
+            return {
+                encode_resp_error(
+                    "GET does not accept a value"
+                )
+            };
         }
 
         const auto value = storage.get(command.key);
 
         if (!value.has_value())
         {
-            return {"Error: Key not found\n"};
+            return {encode_resp_null_bulk_string()};
         }
 
-        return {value.value() + "\n"};
+        return {
+            encode_resp_bulk_string(value.value())
+        };
     }
 
     if (command.operation == "DEL")
     {
         if (command.key.empty())
         {
-            return {"Error: DEL requires key\n"};
+            return {
+                encode_resp_error("DEL requires key")
+            };
         }
 
         if (!command.value.empty())
         {
-            return {"Error: DEL does not accept a value\n"};
+            return {
+                encode_resp_error(
+                    "DEL does not accept a value"
+                )
+            };
         }
 
         const bool removed = storage.del(command.key);
 
-        if (!removed)
-        {
-            return {"Error: Key not found\n"};
-        }
-
-        return {"Key is removed\n", true};
+        return {
+            encode_resp_integer(removed ? 1 : 0),
+            removed
+        };
     }
 
     if (command.operation == "EXISTS")
     {
         if (command.key.empty())
         {
-            return {"Error: EXISTS requires key\n"};
+            return {
+                encode_resp_error("EXISTS requires key")
+            };
         }
 
         if (!command.value.empty())
         {
-            return {"Error: EXISTS does not accept a value\n"};
+            return {
+                encode_resp_error(
+                    "EXISTS does not accept a value"
+                )
+            };
         }
 
         return {
-            storage.exists(command.key) ? "1\n" : "0\n"
+            encode_resp_integer(
+                storage.exists(command.key) ? 1 : 0
+            )
         };
     }
 
@@ -111,18 +142,24 @@ CommandResult execute_command(
     {
         if (!command.key.empty() || !command.value.empty())
         {
-            return {"Error: HELP does not accept arguments\n"};
+            return {
+                encode_resp_error(
+                    "HELP does not accept arguments"
+                )
+            };
         }
 
         return {
-            "Commands:\n"
-            "  PING\n"
-            "  SET key value\n"
-            "  GET key\n"
-            "  DEL key\n"
-            "  EXISTS key\n"
-            "  HELP\n"
-            "  EXIT\n"
+            encode_resp_bulk_string(
+                "Commands:\n"
+                "  PING\n"
+                "  SET key value [EX seconds]\n"
+                "  GET key\n"
+                "  DEL key\n"
+                "  EXISTS key\n"
+                "  HELP\n"
+                "  EXIT\n"
+            )
         };
     }
 
@@ -130,12 +167,21 @@ CommandResult execute_command(
     {
         if (!command.key.empty() || !command.value.empty())
         {
-            return {"Error: EXIT does not accept arguments\n"};
+            return {
+                encode_resp_error(
+                    "EXIT does not accept arguments"
+                )
+            };
         }
 
-        // EXIT closes this client connection, not the whole server.
-        return {"BYE\n", false, true};
+        return {
+            encode_resp_simple_string("BYE"),
+            false,
+            true
+        };
     }
 
-    return {"Error: unknown command\n"};
+    return {
+        encode_resp_error("unknown command")
+    };
 }

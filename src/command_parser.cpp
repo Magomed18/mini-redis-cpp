@@ -4,6 +4,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <vector>
+#include <algorithm>
+#include <cctype>
 
 namespace
 {
@@ -50,6 +52,18 @@ Command parse_command(
 
     Command command;
     command.operation = arguments[0];
+
+    std::transform(
+    command.operation.begin(),
+    command.operation.end(),
+    command.operation.begin(),
+    [](unsigned char character)
+    {
+        return static_cast<char>(
+            std::toupper(character)
+        );
+    }
+    );
 
     if (arguments.size() >= 2)
     {
