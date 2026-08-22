@@ -7,7 +7,7 @@ int main()
 {
     KeyValueStore storage;
 
-    // PING should produce a health-check response.
+    // PING
     {
         Command command{};
         command.operation = "PING";
@@ -15,12 +15,12 @@ int main()
         const CommandResult result =
             execute_command(command, storage);
 
-        assert(result.response == "PONG\n");
+        assert(result.response == "+PONG\r\n");
         assert(!result.storage_changed);
         assert(!result.close_connection);
     }
 
-    // SET should modify storage and request persistence.
+    // SET
     {
         Command command{};
         command.operation = "SET";
@@ -30,7 +30,7 @@ int main()
         const CommandResult result =
             execute_command(command, storage);
 
-        assert(result.response == "OK\n");
+        assert(result.response == "+OK\r\n");
         assert(result.storage_changed);
         assert(!result.close_connection);
 
@@ -40,7 +40,7 @@ int main()
         assert(stored_value.value() == "Alice");
     }
 
-    // GET should return the stored value without modifying storage.
+    // GET existing key
     {
         Command command{};
         command.operation = "GET";
@@ -49,12 +49,12 @@ int main()
         const CommandResult result =
             execute_command(command, storage);
 
-        assert(result.response == "Alice\n");
+        assert(result.response == "$5\r\nAlice\r\n");
         assert(!result.storage_changed);
         assert(!result.close_connection);
     }
 
-    // EXIT should close only the current client connection.
+    // EXIT
     {
         Command command{};
         command.operation = "EXIT";
@@ -62,12 +62,12 @@ int main()
         const CommandResult result =
             execute_command(command, storage);
 
-        assert(result.response == "BYE\n");
+        assert(result.response == "+BYE\r\n");
         assert(!result.storage_changed);
         assert(result.close_connection);
     }
 
-    // EXISTS should report that the stored key exists.
+    // EXISTS
     {
         Command command{};
         command.operation = "EXISTS";
@@ -76,11 +76,11 @@ int main()
         const CommandResult result =
             execute_command(command, storage);
 
-        assert(result.response == "1\n");
+        assert(result.response == ":1\r\n");
         assert(!result.storage_changed);
     }
 
-    // DEL should remove the key and request persistence.
+    // Successful DEL
     {
         Command command{};
         command.operation = "DEL";
@@ -89,12 +89,12 @@ int main()
         const CommandResult result =
             execute_command(command, storage);
 
-        assert(result.response == "Key is removed\n");
+        assert(result.response == ":1\r\n");
         assert(result.storage_changed);
         assert(!storage.exists("name"));
     }
 
-    // GET should report a missing key after deletion.
+    // GET missing key
     {
         Command command{};
         command.operation = "GET";
@@ -103,11 +103,11 @@ int main()
         const CommandResult result =
             execute_command(command, storage);
 
-        assert(result.response == "Error: Key not found\n");
+        assert(result.response == "$-1\r\n");
         assert(!result.storage_changed);
     }
 
-    // Invalid SET must not modify storage.
+    // Invalid SET
     {
         Command command{};
         command.operation = "SET";
@@ -116,13 +116,16 @@ int main()
         const CommandResult result =
             execute_command(command, storage);
 
-        assert(result.response ==
-            "Error: SET requires key and value\n");
+        assert(
+            result.response ==
+            "-ERR SET requires key and value\r\n"
+        );
+
         assert(!result.storage_changed);
         assert(!storage.exists("incomplete"));
     }
 
-    // Unknown commands should produce a clear error.
+    // Unknown command
     {
         Command command{};
         command.operation = "UNKNOWN";
@@ -130,7 +133,11 @@ int main()
         const CommandResult result =
             execute_command(command, storage);
 
-        assert(result.response == "Error: unknown command\n");
+        assert(
+            result.response ==
+            "-ERR unknown command\r\n"
+        );
+
         assert(!result.storage_changed);
         assert(!result.close_connection);
     }

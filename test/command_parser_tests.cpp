@@ -46,6 +46,19 @@ int main()
     assert(resp_set.value == "Alice Smith");
     assert(resp_set.ttl.has_value());
     assert(resp_set.ttl.value() == std::chrono::seconds(10));
+    
+    const Command lowercase_ping = parse_command(
+    std::vector<std::string>{"ping"}
+    );
+
+    assert(lowercase_ping.operation == "PING");
+
+    const Command mixed_case_get = parse_command(
+        std::vector<std::string>{"GeT", "name"}
+    );
+
+    assert(mixed_case_get.operation == "GET");
+    assert(mixed_case_get.key == "name");
 
     return 0;
 }
