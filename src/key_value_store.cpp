@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <iomanip>
 #include <filesystem>
+#include <sstream>
 
 // Permanent entry set
 void KeyValueStore::set(
