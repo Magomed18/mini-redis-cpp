@@ -114,3 +114,16 @@ if(WIN32)
     target_link_libraries(mini_redis PRIVATE ws2_32)
     target_link_libraries(client_session_tests PRIVATE ws2_32)
 endif()
+
+if(MSVC)
+    add_compile_options(
+        /W4
+        /permissive-
+    )
+else()
+    add_compile_options(
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+endif()
